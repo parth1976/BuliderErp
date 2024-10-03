@@ -23,7 +23,7 @@ const CustomRoute = ({ route }) => {
     // }
 
 
-    return true ? (
+    return authUser ? (
         <Outlet />
     ) : (
         <Navigate to={defaultPath} replace={true} />
