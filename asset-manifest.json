@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/BuliderErp/static/css/main.46cd743b.css",
-    "main.js": "/BuliderErp/static/js/main.faeb409a.js",
+    "main.js": "/BuliderErp/static/js/main.8524fd84.js",
     "static/js/453.2fca8b29.chunk.js": "/BuliderErp/static/js/453.2fca8b29.chunk.js",
     "static/media/Inter-Black.eot": "/BuliderErp/static/media/Inter-Black.d8e5aa26f6e15678f2ed.eot",
     "static/media/Inter-ExtraBold.eot": "/BuliderErp/static/media/Inter-ExtraBold.2fe051d1b779b86f9598.eot",
@@ -42,11 +42,11 @@
     "static/media/Inter-Regular.woff2": "/BuliderErp/static/media/Inter-Regular.582d8a8e254ad87ea376.woff2",
     "index.html": "/BuliderErp/index.html",
     "main.46cd743b.css.map": "/BuliderErp/static/css/main.46cd743b.css.map",
-    "main.faeb409a.js.map": "/BuliderErp/static/js/main.faeb409a.js.map",
+    "main.8524fd84.js.map": "/BuliderErp/static/js/main.8524fd84.js.map",
     "453.2fca8b29.chunk.js.map": "/BuliderErp/static/js/453.2fca8b29.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.46cd743b.css",
-    "static/js/main.faeb409a.js"
+    "static/js/main.8524fd84.js"
   ]
 }
