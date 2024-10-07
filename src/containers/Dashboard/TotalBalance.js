@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Column, Line } from '@ant-design/plots';
 import ReportChartNoData from '../../components/ReportChartNoData';
 import { useSelector } from 'react-redux';
-import { BASE_URL } from '../../constanats';
+import { BASE_URL, TENURE } from '../../constanats';
 import { callAPI } from '../../utils/api';
 import { notify } from '../../utils/localServiceUtil';
 
@@ -12,34 +12,34 @@ const TotalBalance = () => {
     const [loader, setLoader] = useState(false);
     const [chartData, setChartData] = useState([])
     const [filter, setFilter] = useState({
-        filter: 'monthly',
-      })
-      useEffect(() => {
+        filter: 1,
+    })
+    useEffect(() => {
         if (selectedCompany?._id) {
-          setFilter({
-            fileId: selectedCompany?._id,
-            ...filter
-          })
+            setFilter({
+                fileId: selectedCompany?._id,
+                ...filter
+            })
         }
-      }, [selectedCompany])
-    
-      const fetchData = () => {
+    }, [selectedCompany])
+
+    const fetchData = () => {
         const body = { ...filter }
         callAPI("POST", `${BASE_URL}/user/dashboard/getMonthlyTotalBalanceReport`, body)
-          .then((res) => {
-            // setData(res.data.list);
-            setChartData(res?.data?.list)
-          })
-          .catch((err) => {
-            notify("error", "Failed to fetch data", err.message);
-          });
-      }
-    
-      useEffect(() => {
+            .then((res) => {
+                // setData(res.data.list);
+                setChartData(res?.data?.list)
+            })
+            .catch((err) => {
+                notify("error", "Failed to fetch data", err.message);
+            });
+    }
+
+    useEffect(() => {
         if (selectedCompany && filter?.fileId) {
-          fetchData();
+            fetchData();
         }
-      }, [filter])
+    }, [filter])
 
     const PurchaseBarChart = useMemo(() => {
         const config = {
@@ -159,10 +159,10 @@ const TotalBalance = () => {
     }, [chartData])
 
     const options = [
-        { value: 'Monthly', label: "Monthly" },
-        { value: 'Quarterly', label: "Quarterly" },
-        { value: 'HalfYearly', label: "HalfYearly" },
-        { value: 'Yearly', label: "Yearly" },
+        { value: TENURE.MONTHLY, label: "Monthly" },
+        { value: TENURE.QUARTERLY, label: "Quarterly" },
+        { value: TENURE.SEMI_ANNUAL, label: "HalfYearly" },
+        { value: TENURE.ANNUAL, label: "Yearly" },
     ];
 
     const indianCurrencyFormat = (str) => {
@@ -201,7 +201,7 @@ const TotalBalance = () => {
                                 placeholder="Select"
                                 size="middle"
                                 style={{ maxWidth: '120px', width: '120px' }}
-                            // onChange={(e) => { form.setFieldsValue({ regularTenure: e }); handleChange(); }}
+                                onChange={(e) => { setFilter({ ...filter, filter: e }) }}
                             />
                         </div>
                     </div>

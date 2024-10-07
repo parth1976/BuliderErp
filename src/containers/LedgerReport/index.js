@@ -65,25 +65,26 @@ const LedgerReport = () => {
   }, [filter])
 
   const handleDateChange = (dates) => {
-    if (dates) {
+    if (dates && dates.length > 0) {
       setFilter((prevFilter) => ({
         ...prevFilter,
         filter: {
           ...prevFilter.filter,
-          date: {
-            startDate: moment(dates[0]).format("YYYY-MM-DDTHH:mm:ss"),
-            endDate: moment(dates[1]).format("YYYY-MM-DDTHH:mm:ss"),
+          reminderDate: {
+            startDate: dates[0].format("YYYY-MM-DDTHH:mm:ss"),
+            endDate: dates[1].format("YYYY-MM-DDTHH:mm:ss"),
           },
         },
       }));
     } else {
-      setFilter((prevFilter) => ({
-        ...prevFilter,
-        filter: {
-          ...prevFilter.filter,
-          date: null,
-        },
-      }));
+      // If no dates are selected, remove reminderDate from the filter
+      setFilter((prevFilter) => {
+        const { reminderDate, ...restFilter } = prevFilter.filter;
+        return {
+          ...prevFilter,
+          filter: restFilter,
+        };
+      });
     }
   };
 
@@ -93,7 +94,7 @@ const LedgerReport = () => {
       setTimeout(() => {
         // Make API call to get the options
         callAPI("POST", `${BASE_URL}/user/party/paginate`, {
-          search: { keyboard: search, key: ["name", "houseNo"] },
+          search: { keyword: search, keys: ["ownerName", "houseNumber"] },
         }).then((response) => {
           // Assuming response contains data in the format [{ _id: value, name: label }]
           if (response && response.data) {
@@ -112,14 +113,28 @@ const LedgerReport = () => {
 
   const handleSelectChange = (value) => {
     setSearchComp(value);
-    setFilter((prevFilter) => ({
-      ...prevFilter,
-      filter: {
-        ...prevFilter.filter,
-        partyId: value,
-      },
-    }));
+
+    setFilter((prevFilter) => {
+      if (value.length === 0) {
+        // If value is empty, delete the partyId key from filter
+        const { partyId, ...restFilter } = prevFilter.filter;
+        return {
+          ...prevFilter,
+          filter: restFilter,
+        };
+      }
+
+      return {
+        ...prevFilter,
+        filter: {
+          ...prevFilter.filter,
+          partyId: value,
+        },
+      };
+    });
   };
+
+
   const handleFilterPopover = (data) => {
     const content = (
       <ul>
@@ -225,7 +240,7 @@ const LedgerReport = () => {
         return (
           <div className='f_flex f_align-center f_content-center'>
             <Tooltip placement="bottom" title={'View'}>
-              <span className="f_cp f_icon-small-hover f_flex f_align-center f_content-center" onClick={() => {setIsVisibleModal(true); setLedgerData(props)}}><F_EyeIcon width='16px' height='16px' /></span>
+              <span className="f_cp f_icon-small-hover f_flex f_align-center f_content-center" onClick={() => { setIsVisibleModal(true); setLedgerData(props) }}><F_EyeIcon width='16px' height='16px' /></span>
             </Tooltip>
           </div>
         )
@@ -291,7 +306,7 @@ const LedgerReport = () => {
       dataIndex: 'date',
       id: 'date',
       key: 'date',
-      render : (x) => moment(x).format('DD/MM/YYYY')
+      render: (x) => moment(x).format('DD/MM/YYYY')
     },
     {
       title: 'Total Payment',
@@ -370,7 +385,7 @@ const LedgerReport = () => {
       <div className='f_content-main-header f_flex f_align-center f_content-between'>
         <div className='f_flex f_align-center'>
           <div>
-          <Select
+            <Select
               mode="multiple"
               allowClear
               size='large'
@@ -422,17 +437,17 @@ const LedgerReport = () => {
           pagination={false}
           className='f_listing-antd-table'
           rowSelection={rowSelection}
-          // summary={() => (
-          //   <Table.Summary fixed>
-          //     <Table.Summary.Row className='f_ant-table-summary-fixed'>
-          //       <Table.Summary.Cell className="f_text-right f_fw-600" index={0} colSpan={4}>Total:</Table.Summary.Cell>
-          //       <Table.Summary.Cell className="f_text-left f_fw-600" index={1}><span className='f_color-error-500 f_ml-5'>₹ 10,000</span></Table.Summary.Cell>
-          //       <Table.Summary.Cell className="f_text-left f_fw-600" index={2}><span className='f_color-success-500 f_ml-5'>₹ 10,000</span></Table.Summary.Cell>
-          //       <Table.Summary.Cell index={3}></Table.Summary.Cell>
-          //       <Table.Summary.Cell index={4}></Table.Summary.Cell>
-          //     </Table.Summary.Row>
-          //   </Table.Summary>
-          // )}
+        // summary={() => (
+        //   <Table.Summary fixed>
+        //     <Table.Summary.Row className='f_ant-table-summary-fixed'>
+        //       <Table.Summary.Cell className="f_text-right f_fw-600" index={0} colSpan={4}>Total:</Table.Summary.Cell>
+        //       <Table.Summary.Cell className="f_text-left f_fw-600" index={1}><span className='f_color-error-500 f_ml-5'>₹ 10,000</span></Table.Summary.Cell>
+        //       <Table.Summary.Cell className="f_text-left f_fw-600" index={2}><span className='f_color-success-500 f_ml-5'>₹ 10,000</span></Table.Summary.Cell>
+        //       <Table.Summary.Cell index={3}></Table.Summary.Cell>
+        //       <Table.Summary.Cell index={4}></Table.Summary.Cell>
+        //     </Table.Summary.Row>
+        //   </Table.Summary>
+        // )}
         />
       </div>
 

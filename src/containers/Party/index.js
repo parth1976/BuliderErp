@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
-import { Input, Button, Tooltip, Table, Pagination, Form } from "antd";
+import { Input, Button, Tooltip, Table, Pagination, Form, Modal } from "antd";
 import { F_DeleteIcon, F_DownloadExcelIcon, F_DownloadPdfIcon, F_EditIcon, F_EyeIcon, F_PlusIcon, F_PrintIcon } from "../../Icons";
-import { BASE_URL } from '../../constanats';
-import { notify } from '../../utils/localServiceUtil';
+import { BASE_URL, TOKEN_KEY } from '../../constanats';
+import UtilLocalService, { notify } from '../../utils/localServiceUtil';
 import { calculateEmi } from './caculateEmi';
 import { callAPI } from '../../utils/api';
 import { useSelector } from 'react-redux';
+import axios from 'axios';
 
 const Party = () => {
   const navigate = useNavigate();
@@ -22,7 +23,8 @@ const Party = () => {
     limit: 20,
   })
   const [form] = Form.useForm();
-
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [selectedPartyId, setSelectedPartyId] = useState('')
   useEffect(() => {
     let mainLayoutHeader = document.getElementById("f_layout-content-header");
     let mainContentHeader = document.querySelector(".f_content-main-header");
@@ -76,12 +78,18 @@ const Party = () => {
     {
       title: 'House No.',
       dataIndex: 'houseNumber',
-      id: 'houseNo',
-      key: 'houseNo',
+      id: 'houseNumber',
+      key: 'houseNumber',
     },
     {
       title: 'Party Name',
       dataIndex: 'ownerName',
+      id: 'ownerName',
+      key: 'ownerName',
+    },
+    {
+      title: 'Mobile Number',
+      dataIndex: 'mobileNumber',
       id: 'ownerName',
       key: 'ownerName',
     },
@@ -127,7 +135,7 @@ const Party = () => {
               <span className="f_cp f_icon-small-hover f_flex f_align-center f_content-center f_mr-5" onClick={() => navigate(`/party/view/${props?._id}`)}><F_EditIcon width='14px' height='14px' /></span>
             </Tooltip>
             <Tooltip placement="bottom" title={'Delete'}>
-              <span className="f_cp f_icon-small-hover f_icon-small-hover-delete f_flex f_align-center f_content-center f_mr-5"><F_DeleteIcon width='14px' height='14px' /></span>
+              <span className="f_cp f_icon-small-hover f_icon-small-hover-delete f_flex f_align-center f_content-center f_mr-5" onClick={() => { setSelectedPartyId(props?._id); setDeleteConfirm(true) }} ><F_DeleteIcon width='14px' height='14px' /></span>
             </Tooltip>
             <Tooltip placement="bottom" title={'Print'}>
               <span className="f_cp f_icon-small-hover f_flex f_align-center f_content-center"><F_PrintIcon width='14px' height='14px' /></span>
@@ -145,35 +153,56 @@ const Party = () => {
       setTimeout(() => {
         setFilter((prevFilter) => ({
           ...prevFilter,
-          search: { keyboard: search, key: ['ownerName', 'houseNo'] },
+          search: { keyword: search, keys: ['ownerName', 'houseNumber'] },
         }));
       }, 1000)
     );
   };
 
+  const downloadFile = async (id, fileName) => {
+    axios
+      .post(`${BASE_URL}/user/party/download-xls`, filter, {
+        responseType: "arraybuffer",
+        headers: {
+          Authorization: "Bearer " + UtilLocalService.getLocalStorage(TOKEN_KEY),
+        },
+      })
+      .then((response) => {
+        var blob = new Blob([response.data], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "Party");
+        document.body.appendChild(link);
+        link.click();
+      });
+  };
+
+  const handlePartyDelete = () => {
+    const body = {
+      fileId: selectedCompany?._id,
+      partyIdArray: [selectedPartyId]
+    }
+    callAPI("POST", `${BASE_URL}/user/party/delete`, body, {})
+      .then((res) => {
+        //TODO: check  for if user first removed staff or client from particular role or not
+        res?.code === "OK" && res?.status ? notify("success", res?.message) : notify("error", res?.message);
+        res?.code === "E_NOT_FOUND" && notify("error", res?.message)
+        fetchData();
+        setDeleteConfirm(false);
+      })
+      .catch((err) => {
+        notify("error", err?.message);
+      });
+  };
 
   const rowSelection = {
     onChange: (selectedRowKeys, selectedRows) => {
       console.log(`selectedRowKeys: ${selectedRowKeys}`, 'selectedRows: ', selectedRows);
     },
-    onSelect: (record, selected, selectedRows) => {
-      console.log(record, selected, selectedRows);
-    },
-    onSelectAll: (selected, selectedRows, changeRows) => {
-      console.log(selected, selectedRows, changeRows);
-    },
   };
-
-  const handleChange = () => {
-    const formValues = form.getFieldsValue();
-    console.log(formValues);
-    const data = calculateEmi(formValues);
-    console.log("data", data);
-
-    if (data) {
-      form.setFieldsValue({ remainingAmount: data })
-    }
-  }
 
   return (
     <React.Fragment>
@@ -195,7 +224,7 @@ const Party = () => {
             <Tooltip title="Download PDF" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadPdfIcon width='14px' height='14px' /></span></Tooltip>
           </div>
           <div className='f_ml-10'>
-            <Tooltip title="Download Excel" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
+            <Tooltip title="Download Excel" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon' onClick={() => downloadFile()}><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
           </div>
           <div className='f_ml-10'>
             <Button type="primary" className="f_flex f_align-center f_content-center" onClick={() => navigate('/party/create')}><F_PlusIcon width='12px' height='12px' fill='#fff' /> Add</Button>
@@ -208,7 +237,7 @@ const Party = () => {
           dataSource={data}
           pagination={false}
           className='f_listing-antd-table'
-          rowSelection={rowSelection}
+        // rowSelection={rowSelection}
         />
       </div>
 
@@ -225,6 +254,20 @@ const Party = () => {
           }
         />
       </div>
+
+      <Modal
+        open={deleteConfirm}
+        title="Delete"
+        className='s_delete-confirm'
+        onCancel={() => setDeleteConfirm(false)}
+        okText="Delete"
+        cancelText="Cancel"
+        onOk={() => handlePartyDelete()}
+      >
+        <p className="s_text-left s_fs-14 s_mb-10"> Are you sure you want to delete this record?</p>
+        {/* <div className='s_flex s_align-center s_content-end'> <Button onClick={() => setDeleteConfirm(false)}>Cancel</Button> <Button className='s_ml-10' onClick={() => handleRoleDelete(actionData?._id)} danger type="primary">Delete</Button></div> */}
+      </Modal>
+
     </React.Fragment >
   )
 }

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { Input, Tooltip, Table, Pagination, Checkbox, Tag, Popover, DatePicker, Col, Form, Modal, Select, Row, Button } from "antd";
 import { F_DeleteIcon, F_DownloadExcelIcon, F_DownloadPdfIcon, F_EditIcon, F_FilterIcon, F_PlusIcon } from "../../Icons";
-import { BASE_URL, PAYMENT_MODE, TRANSACTION_CONSTANTS, TYPE_CONSTANTS } from '../../constanats';
+import { BASE_URL, PAYMENT_MODE, TOKEN_KEY, TRANSACTION_CONSTANTS, TYPE_CONSTANTS } from '../../constanats';
 import { callAPI } from '../../utils/api';
 import moment from 'moment';
-import { notify } from '../../utils/localServiceUtil';
+import UtilLocalService, { notify } from '../../utils/localServiceUtil';
 import { useSelector } from 'react-redux';
+import axios from 'axios';
 
 const { RangePicker } = DatePicker;
 
@@ -24,10 +25,12 @@ const BankAccount = () => {
   const [totalPages, settotalPages] = React.useState(0);
   const [searchComp, setSearchComp] = useState([]);
   const [inputTimeout, setInputTimeout] = useState(null);
-
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [selectedPartyId, setSelectedPartyId] = useState('')
   const [partyData, setPartyData] = useState([])
   const [form] = Form.useForm();
   const [form2] = Form.useForm();
+  const [selectedTransType, setSelectedTransType] = useState([]);
 
   const transOptions = [
     { value: TRANSACTION_CONSTANTS.CREDIT, label: "Credit" },
@@ -103,26 +106,79 @@ const BankAccount = () => {
     }
   }, [filter])
 
+  const handleCheckboxChange = (type) => {
+    setSelectedTransType((prevSelected) => {
+      const newSelected = prevSelected.includes(type)
+        ? prevSelected.filter((t) => t !== type)
+        : [...prevSelected, type];
+
+      // Update the filter based on selected values
+      setFilter((prevFilter) => {
+        const newFilter = { ...prevFilter.filter };
+
+        if (newSelected.length > 0) {
+          newFilter.transactionType = newSelected;
+        } else {
+          delete newFilter.transactionType;
+        }
+
+        return {
+          ...prevFilter,
+          filter: newFilter,
+        };
+      });
+
+      return newSelected;
+    });
+  };
+
+
+  const clearSelection = () => {
+    setSelectedTransType([]);
+    setFilter((prevFilter) => {
+      const newFilter = { ...prevFilter.filter };
+      delete newFilter.transactionType;
+
+      return {
+        ...prevFilter,
+        filter: newFilter,
+      };
+    });
+  };
+
+  const content = () => (
+    <ul>
+      <li className="f_flex f_align-center f_cp">
+        <Checkbox onChange={(e) => handleCheckboxChange(TRANSACTION_CONSTANTS.CREDIT)} checked={selectedTransType.includes(TRANSACTION_CONSTANTS.CREDIT)}>Credit</Checkbox>
+      </li>
+      <li className="f_flex f_align-center f_cp">
+        <Checkbox onChange={(e) => handleCheckboxChange(TRANSACTION_CONSTANTS.DEBIT)} checked={selectedTransType.includes(TRANSACTION_CONSTANTS.DEBIT)}>Debit</Checkbox>
+      </li>
+      <li className="f_clear-filter f_cp" onClick={() => clearSelection()}>Clear</li>
+    </ul>
+  );
+
   const handleDateChange = (dates) => {
-    if (dates) {
+    if (dates && dates.length > 0) {
       setFilter((prevFilter) => ({
         ...prevFilter,
         filter: {
           ...prevFilter.filter,
-          date: {
-            startDate: moment(dates[0]).format("YYYY-MM-DDTHH:mm:ss"),
-            endDate: moment(dates[1]).format("YYYY-MM-DDTHH:mm:ss"),
+          reminderDate: {
+            startDate: dates[0].format("YYYY-MM-DDTHH:mm:ss"),
+            endDate: dates[1].format("YYYY-MM-DDTHH:mm:ss"),
           },
         },
       }));
     } else {
-      setFilter((prevFilter) => ({
-        ...prevFilter,
-        filter: {
-          ...prevFilter.filter,
-          date: null,
-        },
-      }));
+      // If no dates are selected, remove reminderDate from the filter
+      setFilter((prevFilter) => {
+        const { reminderDate, ...restFilter } = prevFilter.filter;
+        return {
+          ...prevFilter,
+          filter: restFilter,
+        };
+      });
     }
   };
 
@@ -132,7 +188,7 @@ const BankAccount = () => {
       setTimeout(() => {
         // Make API call to get the options
         callAPI("POST", `${BASE_URL}/user/party/paginate`, {
-          search: { keyboard: search, key: ["name", "houseNo"] },
+          search: { keyword: search, keys: ["ownerName", "houseNumber"] },
         }).then((response) => {
           // Assuming response contains data in the format [{ _id: value, name: label }]
           if (response && response.data) {
@@ -151,13 +207,25 @@ const BankAccount = () => {
 
   const handleSelectChange = (value) => {
     setSearchComp(value);
-    setFilter((prevFilter) => ({
-      ...prevFilter,
-      filter: {
-        ...prevFilter.filter,
-        partyId: value,
-      },
-    }));
+
+    setFilter((prevFilter) => {
+      if (value.length === 0) {
+        // If value is empty, delete the partyId key from filter
+        const { partyId, ...restFilter } = prevFilter.filter;
+        return {
+          ...prevFilter,
+          filter: restFilter,
+        };
+      }
+
+      return {
+        ...prevFilter,
+        filter: {
+          ...prevFilter.filter,
+          partyId: value,
+        },
+      };
+    });
   };
 
   const handleCreateStaff = (values) => {
@@ -260,8 +328,8 @@ const BankAccount = () => {
     },
     {
       title: <div className='f_flex f_align-center f_content-center'><span>Transaction Type</span>
-        <Popover placement="bottomRight" overlayClassName="f_common-popover" content={handleFilterPopover()} trigger="click">
-          <span className='f_cp f_ml-5 f_flex f_align-center f_content-center'><F_FilterIcon width='14px' height='14px' /></span>
+        <Popover placement="bottomRight" overlayClassName="f_common-popover" content={content()} trigger="click">
+          <span className='f_cp f_ml-5 f_flex f_align-center f_content-center'><F_FilterIcon width='14px' height='14px' fill={selectedTransType.length > 0 ? '#184ecf' : '#5e6782'}/></span>
         </Popover></div>,
       id: "status",
       key: "status",
@@ -284,7 +352,7 @@ const BankAccount = () => {
         return (
           <div className='f_flex f_align-center f_content-center'>
             <Tooltip placement="bottom" title={'Delete'}>
-              <span className="f_cp f_icon-small-hover f_icon-small-hover-delete f_flex f_align-center f_content-center f_ml-5"><F_DeleteIcon width='14px' height='14px' /></span>
+              <span className="f_cp f_icon-small-hover f_icon-small-hover-delete f_flex f_align-center f_content-center f_ml-5" onClick={() => { setSelectedPartyId(props?._id); setDeleteConfirm(true) }}><F_DeleteIcon width='14px' height='14px' /></span>
             </Tooltip>
           </div>
         )
@@ -303,6 +371,44 @@ const BankAccount = () => {
     onSelectAll: (selected, selectedRows, changeRows) => {
       console.log(selected, selectedRows, changeRows);
     },
+  };
+
+  const downloadFile = async (id, fileName) => {
+    axios
+      .post(`${BASE_URL}/user/account/bank/download-xls`, filter, {
+        responseType: "arraybuffer",
+        headers: {
+          Authorization: "Bearer " + UtilLocalService.getLocalStorage(TOKEN_KEY),
+        },
+      })
+      .then((response) => {
+        var blob = new Blob([response.data], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "bank_account");
+        document.body.appendChild(link);
+        link.click();
+      });
+  };
+
+  const handleBankAccountDelete = () => {
+    const body = {
+      accountIdArray: [selectedPartyId]
+    }
+    callAPI("POST", `${BASE_URL}/user/account/delete`, body, {})
+      .then((res) => {
+        //TODO: check  for if user first removed staff or client from particular role or not
+        res?.code === "OK" && res?.status ? notify("success", res?.message) : notify("error", res?.message);
+        res?.code === "E_NOT_FOUND" && notify("error", res?.message)
+        fetchData();
+        setDeleteConfirm(false);
+      })
+      .catch((err) => {
+        notify("error", err?.message);
+      });
   };
 
   return (
@@ -346,7 +452,7 @@ const BankAccount = () => {
             <Tooltip title="Download PDF" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadPdfIcon width='14px' height='14px' /></span></Tooltip>
           </div>
           <div className='f_ml-10'>
-            <Tooltip title="Download Excel" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
+            <Tooltip title="Download Excel" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon' onClick={() => downloadFile()} ><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
           </div>
           <div className='f_ml-10'>
             <Button type="primary" className="f_flex f_align-center f_content-center" onClick={() => setIsVisibleCreateModal(true)}><F_PlusIcon width='12px' height='12px' fill='#fff' /> Create Account</Button>
@@ -624,6 +730,20 @@ const BankAccount = () => {
           </Row>
         </Form>
       </Modal>}
+
+      <Modal
+        open={deleteConfirm}
+        title="Delete"
+        className='s_delete-confirm'
+        onCancel={() => setDeleteConfirm(false)}
+        okText="Delete"
+        cancelText="Cancel"
+        onOk={() => handleBankAccountDelete()}
+      >
+        <p className="s_text-left s_fs-14 s_mb-10"> Are you sure you want to delete this record?</p>
+        {/* <div className='s_flex s_align-center s_content-end'> <Button onClick={() => setDeleteConfirm(false)}>Cancel</Button> <Button className='s_ml-10' onClick={() => handleRoleDelete(actionData?._id)} danger type="primary">Delete</Button></div> */}
+      </Modal>
+
     </React.Fragment>
   )
 }

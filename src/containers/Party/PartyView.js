@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react'
 import { Tooltip, Table, Button, Row, Form, Input, Col, DatePicker, Pagination, Modal, Select, Checkbox, Popover, Tag } from "antd";
 import { F_BackArrowIcon, F_DeleteIcon, F_DownloadExcelIcon, F_DownloadPdfIcon, F_EditIcon, F_EyeIcon, F_FilterIcon, F_PlusIcon } from "../../Icons";
 import { useNavigate } from 'react-router-dom';
-import { BASE_URL, TENURE } from '../../constanats';
-import { notify } from '../../utils/localServiceUtil';
+import { BASE_URL, PAYMENT_MODE, TENURE, TOKEN_KEY } from '../../constanats';
+import UtilLocalService, { notify } from '../../utils/localServiceUtil';
 import { calculateEmi } from './caculateEmi';
 import { callAPI } from '../../utils/api';
 import { useSelector } from 'react-redux';
 import { render } from '@testing-library/react';
+import axios from 'axios';
 
 const PartyView = () => {
   const [finalHeight, setFinalHeight] = useState("");
@@ -22,6 +23,8 @@ const PartyView = () => {
   const totalPayment = Form.useWatch("payment", form); // Watch paymentMode value
   const paymentModes = Form.useWatch("paymentMode", form2); // Watch paymentMode value
   const [selectedPaymentId, setSelctedPaymentId] = useState("")
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+
   const optionsType = [
     { value: 1, label: "Credit" },
     { value: 2, label: "Debit" },
@@ -192,7 +195,7 @@ const PartyView = () => {
       key: 'transactionType',
       className: 'f_text-center',
       render: (transactionType) => {
-        return transactionType == 1 ? "Credit" : "Debit";
+        return transactionType == 1 ? "Credit" : transactionType == 2 ? "Debit" : "-";
       }
     },
     {
@@ -205,7 +208,7 @@ const PartyView = () => {
       key: 'paymentMode',
       className: 'f_text-center',
       render: (paymentMode) => {
-        return paymentMode == 2 ? "Cash" : "Cheque";
+        return paymentMode == PAYMENT_MODE.CASH ? "Cash" : paymentMode == PAYMENT_MODE.CHAQUE ? "Cheque" : paymentMode == PAYMENT_MODE.ETRANSAFER ? "E-Transfer" : "-";
       }
     },
     {
@@ -245,7 +248,7 @@ const PartyView = () => {
               <span className="f_cp f_icon-small-hover f_flex f_align-center f_content-center f_mr-5" onClick={() => { setIsVisibleModal(true); form2.setFieldsValue({ payment: props?.payment }); setSelctedPaymentId(props?._id); }}><F_EditIcon width='14px' height='14px' /></span>
             </Tooltip>
             <Tooltip placement="bottom" title={'Delete'}>
-              <span className="f_cp f_icon-small-hover f_icon-small-hover-delete f_flex f_align-center f_content-center f_mr-5"><F_DeleteIcon width='14px' height='14px' /></span>
+              <span className="f_cp f_icon-small-hover f_icon-small-hover-delete f_flex f_align-center f_content-center f_mr-5" onClick={() => { setDeleteConfirm(true); setSelctedPaymentId(props?._id); }}><F_DeleteIcon width='14px' height='14px' /></span>
             </Tooltip>
           </div>
         )
@@ -299,6 +302,47 @@ const PartyView = () => {
         notify("error", "Failed to update payment status", err.message);
       });
   }
+
+  const downloadFile = async (id, fileName) => {
+    axios
+      .post(`${BASE_URL}/user/payment/download-xls`, { filter: { partyId } }, {
+        responseType: "arraybuffer",
+        headers: {
+          Authorization: "Bearer " + UtilLocalService.getLocalStorage(TOKEN_KEY),
+        },
+      })
+      .then((response) => {
+        var blob = new Blob([response.data], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", houseNumber);
+        document.body.appendChild(link);
+        link.click();
+      });
+  };
+
+  const handlePaymentIdDelete = () => {
+    const body = {
+      partyId: partyId,
+      paymentIdArray: [selectedPaymentId]
+    }
+    callAPI("POST", `${BASE_URL}/user/payment/delete`, body, {})
+      .then((res) => {
+        //TODO: check  for if user first removed staff or client from particular role or not
+        res?.code === "OK" && res?.status ? notify("success", res?.message) : notify("error", res?.message);
+        res?.code === "E_NOT_FOUND" && notify("error", res?.message)
+        fetchPartyEmis();
+        fetchPartyDetails();
+        setDeleteConfirm(false);
+        setSelctedPaymentId('')
+      })
+      .catch((err) => {
+        notify("error", err?.message);
+      });
+  };
 
   return (
     <React.Fragment>
@@ -444,7 +488,7 @@ const PartyView = () => {
                         message: 'Mobile number should be of 10 digits.',
                       }
                     ]}
-                    >
+                  >
                     <Input
                       placeholder='Enter Your Broker Mobile No.'
                       autoComplete='off'
@@ -662,7 +706,7 @@ const PartyView = () => {
             <div className='f_flex f_align-center f_content-end'>
               <div className='f_ml-10'>
                 <h6 className='f_flex f_align-center'>
-                  Complete Payment: <span>45,00,000.00</span>
+                  Complete Payment: <span>{form.getFieldValue('totalPaidAmount')}</span>
                 </h6>
               </div>
               <div className='f_ml-10'>
@@ -672,7 +716,7 @@ const PartyView = () => {
                 <Tooltip title="Download PDF" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadPdfIcon width='14px' height='14px' /></span></Tooltip>
               </div>
               <div className='f_ml-10'>
-                <Tooltip title="Download Excel" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
+                <Tooltip title="Download Excel" placement='bottom' oncl><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon' onClick={() => downloadFile()}><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
               </div>
             </div>
           </div>
@@ -682,19 +726,19 @@ const PartyView = () => {
               dataSource={finalData}
               pagination={false}
               className='f_listing-antd-table'
-              summary={() => (
-                <Table.Summary fixed>
-                  <Table.Summary.Row className='f_ant-table-summary-fixed'>
-                    <Table.Summary.Cell className="f_text-right f_fw-600" index={0} colSpan={3}>Total:</Table.Summary.Cell>
-                    <Table.Summary.Cell className="f_text-left f_fw-600" index={1}><span className='f_color-primary-500 '>₹ 10,000</span></Table.Summary.Cell>
-                    <Table.Summary.Cell index={3}></Table.Summary.Cell>
-                    <Table.Summary.Cell index={4}></Table.Summary.Cell>
-                    <Table.Summary.Cell index={5}></Table.Summary.Cell>
-                    <Table.Summary.Cell index={6}></Table.Summary.Cell>
-                    <Table.Summary.Cell index={7}></Table.Summary.Cell>
-                  </Table.Summary.Row>
-                </Table.Summary>
-              )}
+            // summary={() => (
+            //   <Table.Summary fixed>
+            //     <Table.Summary.Row className='f_ant-table-summary-fixed'>
+            //       <Table.Summary.Cell className="f_text-right f_fw-600" index={0} colSpan={3}>Total:</Table.Summary.Cell>
+            //       <Table.Summary.Cell className="f_text-left f_fw-600" index={1}><span className='f_color-primary-500 '>₹ 10,000</span></Table.Summary.Cell>
+            //       <Table.Summary.Cell index={3}></Table.Summary.Cell>
+            //       <Table.Summary.Cell index={4}></Table.Summary.Cell>
+            //       <Table.Summary.Cell index={5}></Table.Summary.Cell>
+            //       <Table.Summary.Cell index={6}></Table.Summary.Cell>
+            //       <Table.Summary.Cell index={7}></Table.Summary.Cell>
+            //     </Table.Summary.Row>
+            //   </Table.Summary>
+            // )}
             />
           </div>
         </div>}
@@ -852,6 +896,20 @@ const PartyView = () => {
           </Row>
         </Form>
       </Modal>}
+
+      <Modal
+        open={deleteConfirm}
+        title="Delete"
+        className='s_delete-confirm'
+        onCancel={() => setDeleteConfirm(false)}
+        okText="Delete"
+        cancelText="Cancel"
+        onOk={() => handlePaymentIdDelete()}
+      >
+        <p className="s_text-left s_fs-14 s_mb-10"> Are you sure you want to delete this record ?</p>
+        {/* <div className='s_flex s_align-center s_content-end'> <Button onClick={() => setDeleteConfirm(false)}>Cancel</Button> <Button className='s_ml-10' onClick={() => handleRoleDelete(actionData?._id)} danger type="primary">Delete</Button></div> */}
+      </Modal>
+
     </React.Fragment >
   )
 }

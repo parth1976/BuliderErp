@@ -3,10 +3,11 @@ import { Input, Tooltip, Table, Pagination, Checkbox, Tag, Popover, DatePicker, 
 import { F_DownloadExcelIcon, F_DownloadPdfIcon, F_EditIcon, F_FilterIcon } from "../../Icons";
 import { useSelector } from 'react-redux';
 import { callAPI } from '../../utils/api';
-import { BASE_URL } from '../../constanats';
-import { notify } from '../../utils/localServiceUtil';
+import { BASE_URL, PAYMENT_STATUS, TOKEN_KEY } from '../../constanats';
+import UtilLocalService, { notify } from '../../utils/localServiceUtil';
 import moment from 'moment';
 import { render } from '@testing-library/react';
+import axios from 'axios';
 
 const { RangePicker } = DatePicker;
 
@@ -29,6 +30,8 @@ const Reminder = () => {
   const [selectedPartyId, setSelctedPartyId] = useState("");
   const [options, setOptions] = useState([]);
   const { Option } = Select;
+  const [selectedEmiTypes, setSelectedEmiTypes] = useState([]);
+  const [selectedStatus, setSelectedStatus] = useState([]);
 
   const optionsType = [
     { value: 1, label: "Credit" },
@@ -57,27 +60,29 @@ const Reminder = () => {
   }
 
   const handleDateChange = (dates) => {
-    if (dates) {
+    if (dates && dates.length > 0) {
       setFilter((prevFilter) => ({
         ...prevFilter,
         filter: {
           ...prevFilter.filter,
           reminderDate: {
-            startDate: moment(dates[0]).format("YYYY-MM-DD"),
-            endDate: moment(dates[1]).format("YYYY-MM-DD"),
+            startDate: dates[0].format("YYYY-MM-DD"),
+            endDate: dates[1].format("YYYY-MM-DD"),
           },
         },
       }));
     } else {
-      setFilter((prevFilter) => ({
-        ...prevFilter,
-        filter: {
-          ...prevFilter.filter,
-          date: null,
-        },
-      }));
+      // If no dates are selected, remove reminderDate from the filter
+      setFilter((prevFilter) => {
+        const { reminderDate, ...restFilter } = prevFilter.filter;
+        return {
+          ...prevFilter,
+          filter: restFilter,
+        };
+      });
     }
   };
+
 
   useEffect(() => {
     let mainLayoutHeader = document.getElementById("f_layout-content-header");
@@ -134,17 +139,129 @@ const Reminder = () => {
     return content;
   }
 
-  const handleFilterEmiPopover = (data) => {
-    const content = (
-      <ul>
-        <li className="f_flex f_align-center f_cp"><Checkbox>Regular</Checkbox></li>
-        <li className="f_flex f_align-center f_cp"><Checkbox>Master</Checkbox></li>
-        <li className="f_clear-filter f_cp">Clear</li>
-      </ul>
-    );
+  const clearSelection = () => {
+    setSelectedEmiTypes([]);
+    setFilter((prevFilter) => {
+      const newFilter = { ...prevFilter.filter };
+      delete newFilter.emiType;
 
-    return content;
-  }
+      return {
+        ...prevFilter,
+        filter: newFilter,
+      };
+    });
+  };
+
+  const content = () => (
+    <ul>
+      <li className="f_flex f_align-center f_cp">
+        <Checkbox
+          checked={selectedEmiTypes.includes(1)}
+          onChange={() => handleCheckboxChange(1)}
+        >
+          Regular
+        </Checkbox>
+      </li>
+      <li className="f_flex f_align-center f_cp">
+        <Checkbox
+          checked={selectedEmiTypes.includes(2)}
+          onChange={() => handleCheckboxChange(2)}
+        >
+          Master
+        </Checkbox>
+      </li>
+      <li className="f_clear-filter f_cp" onClick={clearSelection}>
+        Clear
+      </li>
+    </ul>
+  );
+
+  const handleCheckboxChangeStatus = (status) => {
+    setSelectedStatus((prevSelected) => {
+      const newSelected = prevSelected.includes(status)
+        ? prevSelected.filter((s) => s !== status)
+        : [...prevSelected, status];
+
+      // Update the filter based on selected status
+      setFilter((prevFilter) => {
+        const newFilter = { ...prevFilter.filter };
+
+        if (newSelected.length > 0) {
+          newFilter.status = newSelected;
+        } else {
+          delete newFilter.status;
+        }
+
+        return {
+          ...prevFilter,
+          filter: newFilter,
+        };
+      });
+
+      return newSelected;
+    });
+  };
+
+  const clearSelectionStatus = () => {
+    setSelectedStatus([]);
+    setFilter((prevFilter) => {
+      const newFilter = { ...prevFilter.filter };
+      delete newFilter.status;
+
+      return {
+        ...prevFilter,
+        filter: newFilter,
+      };
+    });
+  };
+
+  const ststusContent = () => (
+    <ul>
+      <li className="f_flex f_align-center f_cp">
+        <Checkbox
+          checked={selectedStatus.includes(PAYMENT_STATUS.ON_TIME)}
+          onChange={() => handleCheckboxChangeStatus(PAYMENT_STATUS.ON_TIME)}
+        >
+          On-Time
+        </Checkbox>
+      </li>
+      <li className="f_flex f_align-center f_cp">
+        <Checkbox
+          checked={selectedStatus.includes(PAYMENT_STATUS.ADVANCE)}
+          onChange={() => handleCheckboxChangeStatus(PAYMENT_STATUS.ADVANCE)}
+        >
+          Advanced
+        </Checkbox>
+      </li>
+      <li className="f_flex f_align-center f_cp">
+        <Checkbox
+          checked={selectedStatus.includes(PAYMENT_STATUS.OVERDUE)}
+          onChange={() => handleCheckboxChangeStatus(PAYMENT_STATUS.OVERDUE)}
+        >
+          Overdue
+        </Checkbox>
+      </li>
+      <li className="f_flex f_align-center f_cp">
+        <Checkbox
+          checked={selectedStatus.includes(PAYMENT_STATUS.PENDING)}
+          onChange={() => handleCheckboxChangeStatus(PAYMENT_STATUS.PENDING)}
+        >
+          Pending
+        </Checkbox>
+      </li>
+      <li className="f_flex f_align-center f_cp">
+        <Checkbox
+          checked={selectedStatus.includes(PAYMENT_STATUS.LATE_PAYED)}
+          onChange={() => handleCheckboxChangeStatus(PAYMENT_STATUS.LATE_PAYED)}
+        >
+          Late-paid
+        </Checkbox>
+      </li>
+      <li className="f_clear-filter f_cp" onClick={clearSelectionStatus}>
+        Clear
+      </li>
+    </ul>
+  );
 
   const findStatus = (code) => {
     let color, text, classname;
@@ -160,6 +277,10 @@ const Reminder = () => {
     } else if (code === 3) {
       text = 'Advanced';
       classname = "processing_tag"
+    }
+    else if (code === 5) {
+      text = 'Late Paid';
+      classname = "ant-tag-orange"
     }
     return <Tag color={color} className={classname}>{text}</Tag>
   }
@@ -179,8 +300,8 @@ const Reminder = () => {
     {
       title: 'House No.',
       dataIndex: 'partyId',
-      id: 'houseNo',
-      key: 'houseNo',
+      id: 'houseNumber',
+      key: 'houseNumber',
       render: (x) => x?.houseNumber
     },
     {
@@ -225,8 +346,8 @@ const Reminder = () => {
     },
     {
       title: <div className='f_flex f_align-center f_content-center'><span>EMI Type</span>
-        <Popover placement="bottomRight" overlayClassName="f_common-popover" content={handleFilterEmiPopover()} trigger="click">
-          <span className='f_cp f_ml-5 f_flex f_align-center f_content-center'><F_FilterIcon width='14px' height='14px' /></span>
+        <Popover placement="bottomRight" overlayClassName="f_common-popover" content={content()} trigger="click">
+          <span className='f_cp f_ml-5 f_flex f_align-center f_content-center'><F_FilterIcon width='14px' height='14px' fill={selectedEmiTypes.length > 0 ? '#184ecf' : '#5e6782'}/></span>
         </Popover></div>,
       dataIndex: 'emiType',
       className: 'f_text-center',
@@ -238,8 +359,8 @@ const Reminder = () => {
     },
     {
       title: <div className='f_flex f_align-center f_content-center'><span>Status</span>
-        <Popover placement="bottomRight" overlayClassName="f_common-popover" content={handleFilterPopover()} trigger="click">
-          <span className='f_cp f_ml-5 f_flex f_align-center f_content-center'><F_FilterIcon width='14px' height='14px' /></span>
+        <Popover placement="bottomRight" overlayClassName="f_common-popover" content={ststusContent()} trigger="click">
+          <span className='f_cp f_ml-5 f_flex f_align-center f_content-center'><F_FilterIcon width='14px' height='14px' fill={selectedStatus.length > 0 ? '#184ecf' : '#5e6782'}/></span>
         </Popover></div>,
       id: "status",
       key: "status",
@@ -312,10 +433,37 @@ const Reminder = () => {
       ...prevFilter,
       filter: {
         ...prevFilter.filter,
-        reminderDate : startDate && endDate ? { startDate, endDate } : null,
+        reminderDate: startDate && endDate ? { startDate, endDate } : null,
       },
     }));
   };
+
+  const handleCheckboxChange = (type) => {
+    setSelectedEmiTypes((prevSelected) => {
+      const newSelected = prevSelected.includes(type)
+        ? prevSelected.filter((t) => t !== type)
+        : [...prevSelected, type];
+
+      // Update the filter based on selected values
+      setFilter((prevFilter) => {
+        const newFilter = { ...prevFilter.filter };
+
+        if (newSelected.length > 0) {
+          newFilter.emiType = newSelected;
+        } else {
+          delete newFilter.emiType;
+        }
+
+        return {
+          ...prevFilter,
+          filter: newFilter,
+        };
+      });
+
+      return newSelected;
+    });
+  };
+
 
   const handleFilterMonthPopover = () => (
     <Radio.Group
@@ -355,7 +503,7 @@ const Reminder = () => {
       setTimeout(() => {
         // Make API call to get the options
         callAPI("POST", `${BASE_URL}/user/party/paginate`, {
-          search: { keyboard: search, key: ["name", "houseNo"] },
+          search: { keyword: search, keys: ["ownerName", "houseNumber"] },
         }).then((response) => {
           // Assuming response contains data in the format [{ _id: value, name: label }]
           if (response && response.data) {
@@ -374,15 +522,47 @@ const Reminder = () => {
 
   const handleSelectChange = (value) => {
     setSearchComp(value);
-    setFilter((prevFilter) => ({
-      ...prevFilter,
-      filter: {
-        ...prevFilter.filter,
-        partyId: value,
-      },
-    }));
+
+    setFilter((prevFilter) => {
+      if (value.length === 0) {
+        // If value is empty, delete the partyId key from filter
+        const { partyId, ...restFilter } = prevFilter.filter;
+        return {
+          ...prevFilter,
+          filter: restFilter,
+        };
+      }
+
+      return {
+        ...prevFilter,
+        filter: {
+          ...prevFilter.filter,
+          partyId: value,
+        },
+      };
+    });
   };
 
+  const downloadFile = async (id, fileName) => {
+    axios
+      .post(`${BASE_URL}/user/payment/download-xls`, filter, {
+        responseType: "arraybuffer",
+        headers: {
+          Authorization: "Bearer " + UtilLocalService.getLocalStorage(TOKEN_KEY),
+        },
+      })
+      .then((response) => {
+        var blob = new Blob([response.data], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "Reminder");
+        document.body.appendChild(link);
+        link.click();
+      });
+  };
 
 
   return (
@@ -430,7 +610,7 @@ const Reminder = () => {
             <Tooltip title="Download PDF" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadPdfIcon width='14px' height='14px' /></span></Tooltip>
           </div>
           <div className='f_ml-10'>
-            <Tooltip title="Download Excel" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
+            <Tooltip title="Download Excel" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon' onClick={() => downloadFile()}><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
           </div>
         </div>
       </div>
@@ -440,18 +620,18 @@ const Reminder = () => {
           dataSource={data}
           pagination={false}
           className='f_listing-antd-table'
-          rowSelection={rowSelection}
-          summary={() => (
-            <Table.Summary fixed>
-              <Table.Summary.Row className='f_ant-table-summary-fixed'>
-                <Table.Summary.Cell className="f_text-right f_fw-600" index={0} colSpan={8}>Total:</Table.Summary.Cell>
-                <Table.Summary.Cell className="f_text-left f_fw-600" index={1}><span className='f_color-primary-500 f_ml-5'>₹ 10,000</span></Table.Summary.Cell>
-                <Table.Summary.Cell index={2}></Table.Summary.Cell>
-                <Table.Summary.Cell index={3}></Table.Summary.Cell>
-                <Table.Summary.Cell index={4}></Table.Summary.Cell>
-              </Table.Summary.Row>
-            </Table.Summary>
-          )}
+          // rowSelection={rowSelection}
+          // summary={() => (
+          //   <Table.Summary fixed>
+          //     <Table.Summary.Row className='f_ant-table-summary-fixed'>
+          //       <Table.Summary.Cell className="f_text-right f_fw-600" index={0} colSpan={8}>Total:</Table.Summary.Cell>
+          //       <Table.Summary.Cell className="f_text-left f_fw-600" index={1}><span className='f_color-primary-500 f_ml-5'>₹ 10,000</span></Table.Summary.Cell>
+          //       <Table.Summary.Cell index={2}></Table.Summary.Cell>
+          //       <Table.Summary.Cell index={3}></Table.Summary.Cell>
+          //       <Table.Summary.Cell index={4}></Table.Summary.Cell>
+          //     </Table.Summary.Row>
+          //   </Table.Summary>
+          // )}
         />
       </div>
 

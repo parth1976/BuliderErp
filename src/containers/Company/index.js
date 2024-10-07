@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react'
 import { Input, Button, Tooltip, Table, Pagination, Modal, Row, Form, Col } from "antd";
 import { F_DownloadExcelIcon, F_DownloadPdfIcon, F_EditIcon, F_PlusIcon } from "../../Icons";
 import { callAPI } from '../../utils/api';
-import { BASE_URL } from '../../constanats';
-import { notify } from '../../utils/localServiceUtil';
+import { BASE_URL, TOKEN_KEY } from '../../constanats';
+import UtilLocalService, { notify } from '../../utils/localServiceUtil';
 import Search from 'antd/es/transfer/search';
+import axios from 'axios';
 
 const Company = () => {
   const [finalHeight, setFinalHeight] = useState("");
@@ -99,6 +100,26 @@ const Company = () => {
       console.log(selected, selectedRows, changeRows);
     },
   };
+  const downloadFile = async (id, fileName) => {
+    axios
+      .post(`${BASE_URL}/user/files/download-xls`, filter , {
+        responseType: "arraybuffer",
+        headers: {
+          Authorization: "Bearer " + UtilLocalService.getLocalStorage(TOKEN_KEY),
+        },
+      })
+      .then((response) => {
+        var blob = new Blob([response.data], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "files");
+        document.body.appendChild(link);
+        link.click();
+      });
+  };
 
   const handleCreateCompany = (values) => {
     const url = selctedId ? `/user/files/${selctedId}` : `/user/files/create-file`
@@ -119,21 +140,21 @@ const Company = () => {
 
   return (
     <React.Fragment>
-      <div className='f_content-main-header f_flex f_align-center f_content-between'>
-        <div>
+      <div className='f_content-main-header f_flex f_align-center f_content-end'>
+        {/* <div>
           <Input.Search
             allowClear
             style={{ width: '220px' }}
             className="f_layout-common-search"
             placeholder={"Search Company Name"}
           />
-        </div>
-        <div className="f_flex f_align-center f_content-center">
+        </div> */}
+        <div className="f_flex f_align-center f_content-end">
           <div className='f_ml-10'>
             <Tooltip title="Download PDF" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadPdfIcon width='14px' height='14px' /></span></Tooltip>
           </div>
           <div className='f_ml-10'>
-            <Tooltip title="Download Excel" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon'><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
+            <Tooltip title="Download Excel" placement='bottom'><span className='f_flex f_align-center f_content-center f_cp f_rollover-icon' onClick={() => downloadFile()}><F_DownloadExcelIcon width='14px' height='14px' /></span></Tooltip>
           </div>
           <div className='f_ml-10'>
             <Button type="primary" className="f_flex f_align-center f_content-center" onClick={() => setIsVisibleModal(true)}><F_PlusIcon width='12px' height='12px' fill='#fff' /> Add</Button>
@@ -146,7 +167,7 @@ const Company = () => {
           dataSource={finalData}
           pagination={false}
           className='f_listing-antd-table'
-          rowSelection={rowSelection}
+          // rowSelection={rowSelection}
         />
       </div>
 
@@ -165,12 +186,12 @@ const Company = () => {
       </div> */}
 
       {visibleModal && <Modal
-        title="Edit OR Add Company"
-        okText="Add OR Save"
+        title={selctedId ? "Edit Company" :"Add Company"}
+        okText="Save"
         width="700px"
         open={visibleModal}
         cancelText="Cancel"
-        onCancel={() => { setIsVisibleModal(false); form.resetFields(); }}
+        onCancel={() => { setIsVisibleModal(false); form.resetFields(); setSelectedId('')}}
         onOk={(e) => {
           form
             .validateFields()

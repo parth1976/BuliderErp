@@ -22,3 +22,13 @@ export const TRANSACTION_CONSTANTS = {
     DEBIT: 1,
     CREDIT: 2
 };
+
+export const PAYMENT_STATUS = {
+    PENDING: 1,
+    ON_TIME: 2,
+    ADVANCE: 3,
+    OVERDUE: 4,
+    LATE_PAYED: 5,
+};
+
+
